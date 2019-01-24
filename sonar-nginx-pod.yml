@@ -1,0 +1,69 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sonar-nginx
+  labels:
+    app: sonar-nginx
+spec:
+  containers:
+  - name: sonar
+    image: sonarqube:latest
+    args:
+      - -Dsonar.web.context=/
+      - -Dsonar.web.javaAdditionalOpts=-Duser.timezone=Europe/Athens
+      - -Dsonar.ce.javaAdditionalOpts=-Duser.timezone=Europe/Athens
+      - -Dsonar.search.javaAdditionalOpts=-Duser.timezone=Europe/Athens
+    env:
+      - name: SONARQUBE_JDBC_USERNAME
+        value: sonar
+      - name: SONARQUBE_JDBC_PASSWORD
+        value: sonarpass
+      - name: SONARQUBE_JDBC_URL
+        value: jdbc:postgresql://db:5432/sonar
+    volumeMounts:
+    - name: sonarqube-extensions
+      mountPath: /opt/sonarqube/extensions
+    - name: sonarqube-data
+      mountPath: /opt/sonarqube/data
+    - name: sonarqube-temp
+      mountPath: /opt/sonarqube/temp
+
+    lifecycle:
+            postStart:
+              exec:
+                command: ["/bin/sh", "-c", "cp /usr/share/zoneinfo/Europe/Athens /etc/localtime"] # postStart handler to change timezone
+                command: ["/bin/sh", "-c", "echo | openssl s_client -connect my-gitlab.private:443 -showcerts  > /etc/ssl/my-gitlab.crt && keytool -import -v -trustcacerts -alias my-gitlab -file /etc/ssl/my-gitlab.crt -keystore /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/security/cacerts -keypass changeit -storepass changeit -noprompt"]
+
+  - name: nginx
+    image: nginx:alpine
+    ports:
+    - containerPort: 80
+    volumeMounts:
+    - name: nginx-proxy-config
+      mountPath: /etc/nginx/nginx.conf
+      subPath: nginx.conf
+    - name: tls
+      mountPath: /etc/tls
+      readOnly: true
+    env:
+    - name: TLS_CERT
+      value: /etc/tls/tls.crt
+    - name: TLS_KEY
+      value: /etc/tls/tls.key
+
+  volumes:
+  - name: nginx-proxy-config
+    configMap:
+      name: nginx-conf
+  - name: tls
+    secret: 
+      secretName: yourdomain-tls
+  - name: sonarqube-extensions
+    persistentVolumeClaim:
+      claimName: sonar-ext-pv-claim
+  - name: sonarqube-data
+    persistentVolumeClaim:
+      claimName: sonar-data-pv-claim
+  - name: sonarqube-temp
+    persistentVolumeClaim:
+      claimName: sonar-temp-pv-claim

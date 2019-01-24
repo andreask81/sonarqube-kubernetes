@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sonar
+  labels:
+    group: sonarqube
+    app: sonar
+
+spec:
+  ports:
+    - port: 80
+      targetPort: 80
+      name: sonarport
+    - port: 443
+      targetPort: 443
+      name: sonarport-https
+  selector:
+    app: sonar-nginx
+  type: LoadBalancer

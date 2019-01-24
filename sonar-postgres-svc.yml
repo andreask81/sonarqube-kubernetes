@@ -1,0 +1,99 @@
+#
+# DB service
+#
+
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: db
+  labels:
+    group: sonarqube
+    app: db
+
+spec:
+  ports:
+  - name: pg-port
+    port: 5432
+    targetPort: 5432
+
+  selector:
+    group: sonarqube
+    app: db
+  type: NodePort
+
+---
+
+#
+# PersistentVolumeClaim
+#
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pg-pv-claim
+  labels:
+    group: sonarqube
+    app: db
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+
+#
+# Deployment of DB
+#
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db
+  labels:
+    group: sonarqube
+    app: db
+
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      group: sonarqube   
+      app: db
+  #
+  # Pod template
+  #
+  template:
+    metadata:
+      name: db
+      labels:
+        group: sonarqube   
+        app: db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:9.6
+          ports:
+            - containerPort: 5432
+              name: pg-port
+          lifecycle:
+            postStart:
+              exec:
+                command: ["/bin/sh", "-c", "cp /usr/share/zoneinfo/Europe/Athens /etc/localtime"] # postStart handler to change timezone
+          env:
+            - name: POSTGRES_USER
+              value: sonar
+            - name: POSTGRES_PASSWORD
+              value: sonarpass
+            - name: POSTGRES_DB
+              value: sonar
+          volumeMounts:
+            - name: pg-persistent-storage
+              mountPath: /var/lib/postgresql/data
+              
+      volumes:
+        - name: pg-persistent-storage
+          persistentVolumeClaim:
+            claimName: pg-pv-claim
